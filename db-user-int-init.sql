@@ -23,12 +23,25 @@ ALTER SEQUENCE refetch_tokens_id_seq OWNED BY refetch_tokens.id;
 
 
 CREATE TABLE roles (
+    id integer not null,
     name text NOT NULL
 );
+
+CREATE SEQUENCE roles_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE roles_id_seq OWNED BY roles.id;
 
 CREATE TABLE users (
     id integer NOT NULL,
     username text NOT NULL,
+    mobile text NOT NULL,
     password text NOT NULL,
     active boolean DEFAULT false NOT NULL,
     secret_token uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -77,7 +90,7 @@ ALTER TABLE ONLY refetch_tokens
     ADD CONSTRAINT refetch_tokens_refetch_token_key UNIQUE (refetch_token);
 
 ALTER TABLE ONLY roles
-    ADD CONSTRAINT roles_pkey PRIMARY KEY (name);
+    ADD CONSTRAINT roles_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
@@ -103,4 +116,26 @@ ALTER TABLE ONLY users_x_roles
 ALTER TABLE ONLY users_x_roles
     ADD CONSTRAINT users_x_roles_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE RESTRICT ON DELETE CASCADE;
 
-INSERT INTO roles (name) VALUES ('user')
+INSERT INTO roles (name) VALUES ('user');
+
+-- 功能配置: 扩展认证方式
+CREATE TABLE auth_exts (
+    id integer NOT NULL,
+    name text NOT NULL ,
+    active boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE SEQUENCE auth_exts_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE auth_exts_id_seq OWNED BY auth_features.id;
+
+INSERT INTO auth_exts (name, active) VALUES ('mobile', false);
+INSERT INTO auth_exts (name, active) VALUES ('dyncode', false);
+

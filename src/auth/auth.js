@@ -29,6 +29,7 @@ router.post('/register', async (req, res, next) => {
   const schema = Joi.object().keys({
     username: Joi.string().required(),
     password: Joi.string().required(),
+    mobile: Joi.string().pattern(/^1[3456789]\d{9}$/).required(),
     register_data: Joi.object().allow(null),
   });
 
@@ -38,16 +39,20 @@ router.post('/register', async (req, res, next) => {
     return next(Boom.badRequest(error.details[0].message));
   }
 
-  const { username, password, register_data } = value;
+  const { username, password, mobile, register_data } = value;
 
   // check for duplicates
   let query = `
   query (
-    $username: String!
+    $username: String!,
+    $mobile: String!
   ) {
     ${schema_name}users (
       where: {
-        username: { _eq: $username }
+        _or: [
+          { username: { _eq: $username } },
+          { mobile: { _eq: $mobile } }
+        ]
       }
     ) {
       id
@@ -61,11 +66,11 @@ router.post('/register', async (req, res, next) => {
     });
   } catch (e) {
     console.error(e);
-    return next(Boom.badImplementation("Unable to check for 'username' duplication"));
+    return next(Boom.badImplementation("Unable to check for 'username' or 'mobile' duplication"));
   }
 
   if (hasura_data[`${schema_name}users`].length !== 0) {
-    return next(Boom.unauthorized("The 'username' already exist"));
+    return next(Boom.unauthorized("The 'username' or 'mobile' already exist"));
   }
 
   // generate password_hash
@@ -93,6 +98,7 @@ router.post('/register', async (req, res, next) => {
     await graphql_client.request(query, {
       user: {
         username,
+        mobile,
         password: password_hash,
         secret_token: uuidv4(),
         active: USER_REGISTRATION_AUTO_ACTIVE,

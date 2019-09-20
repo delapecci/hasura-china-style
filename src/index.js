@@ -3,8 +3,8 @@ const cors = require('cors');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
-const auth = require('./auth/auth');
-const storage = require('./storage/storage');
+const auth = require('./auth');
+const storage = require('./storage');
 
 const {
   AUTH_ACTIVE,

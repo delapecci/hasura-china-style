@@ -1,9 +1,10 @@
 const express = require('express');
-const Joi = require('joi');
+const Joi = require('@hapi/joi');
 const Boom = require('boom');
 const bcrypt = require('bcryptjs');
 const uuidv4 = require('uuid/v4');
 const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
 const { graphql_client } = require('../graphql-client');
 
 const {
@@ -13,6 +14,7 @@ const {
   REFETCH_TOKEN_EXPIRES,
   JWT_TOKEN_EXPIRES,
   HASURA_GRAPHQL_JWT_SECRET,
+  SYSTEM_NAME
 } = require('../config');
 
 const auth_tools = require('./auth-tools');
@@ -39,7 +41,7 @@ router.post('/register', async (req, res, next) => {
     return next(Boom.badRequest(error.details[0].message));
   }
 
-  const { username, password, mobile, register_data } = value;
+  const { username, mobile, password, register_data } = value;
 
   // check for duplicates
   let query = `
@@ -62,7 +64,7 @@ router.post('/register', async (req, res, next) => {
 
   try {
     hasura_data = await graphql_client.request(query, {
-      username,
+      username, mobile
     });
   } catch (e) {
     console.error(e);
@@ -260,6 +262,7 @@ router.post('/login', async (req, res, next) => {
   const schema = Joi.object().keys({
     username: Joi.string().required(),
     password: Joi.string().required(),
+    totp_token: Joi.string()
   });
 
   const { error, value } = schema.validate(req.body);
@@ -268,23 +271,31 @@ router.post('/login', async (req, res, next) => {
     return next(Boom.badRequest(error.details[0].message));
   }
 
-  const { username, password } = value;
+  const { username, password, totp_token } = value;
 
   let query = `
-  query (
+  query login_user(
     $username: String!
   ) {
     ${schema_name}users (
       where: {
-        username: { _eq: $username}
+        _or: [
+          { username: { _eq: $username} },
+          { mobile: { _eq: $username } }
+        ]
       }
     ) {
       id
       password
       active
       default_role
-      user_roles {
+      roles: users_x_roles {
         role
+      },
+      login_2fa: users_2fas {
+        enable_totp,
+        totp_code,
+        enable_sms
       }
       ${USER_FIELDS.join('\n')}
     }
@@ -294,7 +305,7 @@ router.post('/login', async (req, res, next) => {
   let hasura_data;
   try {
     hasura_data = await graphql_client.request(query, {
-      username,
+      username
     });
   } catch (e) {
     console.error(e);
@@ -321,6 +332,25 @@ router.post('/login', async (req, res, next) => {
   if (!match) {
     console.error('Password does not match');
     return next(Boom.unauthorized("Invalid 'username' or 'password'"));
+  }
+
+  const login_2fa = user.login_2fa[0];
+  if (login_2fa.enable_totp === true) {
+    // 已启用TOTP两段式验证
+    if (!!totp_token !== true) {
+      console.error('No 2FA token is provided')
+      return next(Boom.unauthorized("No 'totp_token'"));
+    } else {
+      const totpVerified = speakeasy.totp.verify({
+        secret: login_2fa.totp_code,
+        encoding: 'base32',
+        token: totp_token
+      });
+      if (totpVerified !== true) {
+        console.error('Wrong 2FA token is provided')
+        return next(Boom.unauthorized("Invalid 'totp_token'"));
+      }
+    }
   }
 
   const jwt_token = auth_tools.generateJwtToken(user);
@@ -404,8 +434,13 @@ router.post('/refetch-token', async (req, res, next) => {
         id
         active
         default_role
-        user_roles {
+        roles: users_x_roles {
           role
+        },
+        login_2fa: users_2fas {
+          enable_totp,
+          totp_code,
+          enable_sms
         }
         ${USER_FIELDS.join('\n')}
       }
@@ -493,8 +528,13 @@ router.post('/refetch-token', async (req, res, next) => {
   });
 });
 
-router.get('/user', async (req, res, next) => {
-
+/**
+ * 验证登录token中间件函数
+ * @param {Request} req 请求对象
+ * @param {Response} _res 响应对象
+ * @param {Function} next 下一个中间件
+ */
+const _jwt_verify = async (req, _res, next) => {
   // get jwt token
   if (!req.headers.authorization) {
     return next(Boom.badRequest('no authorization header'));
@@ -512,6 +552,7 @@ router.get('/user', async (req, res, next) => {
   // verify jwt token is OK
   let claims;
   try {
+    jwt.exp
     claims = jwt.verify(
       token,
       HASURA_GRAPHQL_JWT_SECRET.key,
@@ -539,6 +580,10 @@ router.get('/user', async (req, res, next) => {
       default_role
       roles: users_x_roles {
         role
+      },
+      login_2fa: users_2fas {
+        enable_totp
+        enable_sms
       }
       ${USER_FIELDS.join('\n')}
     }
@@ -555,10 +600,82 @@ router.get('/user', async (req, res, next) => {
     return next(Boom.unauthorized("Unable to get 'user'"));
   }
 
+  req.user = Object.assign({}, hasura_data.user);
+  next();
+}
+
+router.get('/user', _jwt_verify, async (req, res, next) => {
   // return user as json response
   res.json({
-    user: hasura_data.user,
+    user: req.user,
   });
 });
 
+/**
+ * 登录用户自行启动TOTP验证
+ */
+router.post('/enable-2fa-totp', _jwt_verify, async (req, res, next) => {
+
+  // get user_id from jwt claim
+  const { user } = req;
+  const user_id = user.id;
+
+  if (user.login_2fa.length > 0 && (user.login_2fa)[0].enable_totp === true) {
+    // 已经启动过TOTP验证
+    res.send({
+      totp_url: `otpauth://totp/${SYSTEM_NAME}:${user.username}?secret=${user.login_2fa.totp_code}`
+    });
+  } else {
+    // 生成验证码
+    const totp = speakeasy.generateSecret({ lenght: 20 });
+    const totp_code = totp.base32;
+
+    const query = `
+    mutation upsert_2fa(
+      $id: Int!
+      $totp_code: String!
+      $now: timestamptz!
+    ) {
+      insert_${schema_name}users_2fa (
+        objects: [
+          {
+            user_id: $id,
+            enable_totp: true,
+            enable_sms: false,
+            totp_code: $totp_code
+          }
+        ],
+        on_conflict: {
+          constraint: users_2fa_pkey,
+          update_columns: [ enable_totp, totp_code, enable_sms ]
+        }
+      ) {
+        returning {
+          user_id
+          enable_totp
+          totp_code
+          enable_sms
+        }
+      }
+    }
+    `;
+
+    try {
+      hasura_data = await graphql_client.request(query, {
+        id: user_id,
+        totp_code,
+        now: new Date(),
+      });
+    } catch (e) {
+      console.error(e);
+      return next(Boom.unauthorized('Unable to enable TOTP for user.'));
+    }
+
+    res.send({
+      totp_url: `otpauth://totp/${SYSTEM_NAME}:${user.username}?secret=${totp_code}`
+    });
+  }
+});
+
+// TODO: enable sms 2fa login
 module.exports = router;

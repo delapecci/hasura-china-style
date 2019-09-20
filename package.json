@@ -1,6 +1,6 @@
 {
-  "name": "hasura-backend-plus",
-  "version": "0.0.1",
+  "name": "hasura-china-style",
+  "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -8,15 +8,17 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/elitan/hasura-backend-plus.git"
+    "url": "git+https://github.com/delapecci/hasura-china-style.git"
   },
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/elitan/hasura-backend-plus/issues"
+    "url": "https://github.com/delapecci/hasura-china-style/issues"
   },
-  "homepage": "https://github.com/elitan/hasura-backend-plus#readme",
+  "homepage": "https://github.com/delapecci/hasura-china-style#readme",
   "dependencies": {
+    "@hapi/joi": "^16.1.1",
+    "ali-oss": "^6.1.1",
     "aws-sdk": "^2.362.0",
     "aws-serverless-express": "^3.3.5",
     "bcryptjs": "^2.4.3",
@@ -27,13 +29,13 @@
     "express-jwt": "^5.3.1",
     "graphql-client": "^2.0.1",
     "graphql-request": "^1.8.2",
-    "joi": "^14.1.0",
     "jsonwebtoken": "^8.4.0",
     "mime-types": "^2.1.22",
     "morgan": "^1.9.1",
     "multer": "^1.4.1",
     "multer-s3": "^2.9.0",
     "nodemon": "^1.18.9",
+    "speakeasy": "^2.0.0",
     "uuid": "^3.3.2"
   }
 }

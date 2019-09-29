@@ -33,5 +33,5 @@ module.exports = {
       algorithm: HASURA_GRAPHQL_JWT_SECRET.type,
       expiresIn: `${JWT_TOKEN_EXPIRES}m`,
     });
-  },
+  }
 };

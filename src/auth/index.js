@@ -3,7 +3,6 @@ const Joi = require('@hapi/joi');
 const Boom = require('boom');
 const bcrypt = require('bcryptjs');
 const uuidv4 = require('uuid/v4');
-const jwt = require('jsonwebtoken');
 const speakeasy = require('speakeasy');
 const { graphql_client } = require('../graphql-client');
 
@@ -18,6 +17,8 @@ const {
 } = require('../config');
 
 const auth_tools = require('./auth-tools');
+const myBoom = require('../boom');
+const verify_tool = require('../middlewares/verify');
 
 let router = express.Router();
 
@@ -262,7 +263,7 @@ router.post('/login', async (req, res, next) => {
   const schema = Joi.object().keys({
     username: Joi.string().required(),
     password: Joi.string().required(),
-    totp_token: Joi.string()
+    totp_token: Joi.string().allow('')
   });
 
   const { error, value } = schema.validate(req.body);
@@ -308,14 +309,14 @@ router.post('/login', async (req, res, next) => {
       username
     });
   } catch (e) {
+    // TODO: trace log
     console.error(e);
-    // console.error('Error connection to GraphQL');
-    return next(Boom.unauthorized("Unable to find 'user'"));
+    return next(myBoom.wrapError(500, 50000, `graphql <${e.message}>`));
   }
 
   if (hasura_data[`${schema_name}users`].length === 0) {
     // console.error("No user with this 'username'");
-    return next(Boom.unauthorized("Invalid 'username' or 'password'"));
+    return next(myBoom.wrapError(401, 40101, "Invalid 'username' or 'password'"));
   }
 
   // check if we got any user back
@@ -323,23 +324,24 @@ router.post('/login', async (req, res, next) => {
 
   if (!user.active) {
     // console.error('User not activated');
-    return next(Boom.unauthorized('User not activated.'));
+    return next(myBoom.wrapError(401, 40102, "User not activated."));
   }
 
   // see if password hashes matches
   const match = await bcrypt.compare(password, user.password);
 
   if (!match) {
+    // TODO: audit log
     console.error('Password does not match');
-    return next(Boom.unauthorized("Invalid 'username' or 'password'"));
+    return next(myBoom.wrapError(401, 40103, "Password does not match."));
   }
 
   const login_2fa = user.login_2fa[0];
   if (login_2fa.enable_totp === true) {
     // 已启用TOTP两段式验证
-    if (!!totp_token !== true) {
+    if (!!totp_token !== true || totp_token == '') {
       console.error('No 2FA token is provided')
-      return next(Boom.unauthorized("No 'totp_token'"));
+      return next(myBoom.wrapError(401, 40104, "No 2FA token is provided."));
     } else {
       const totpVerified = speakeasy.totp.verify({
         secret: login_2fa.totp_code,
@@ -348,7 +350,7 @@ router.post('/login', async (req, res, next) => {
       });
       if (totpVerified !== true) {
         console.error('Wrong 2FA token is provided')
-        return next(Boom.unauthorized("Invalid 'totp_token'"));
+        return next(myBoom.wrapError(401, 40104, "Wrong 2FA token is provided."));
       }
     }
   }
@@ -379,7 +381,7 @@ router.post('/login', async (req, res, next) => {
     });
   } catch (e) {
     console.error(e);
-    return next(Boom.badImplementation("Could not update 'refetch token' for user"));
+    return next(myBoom.wrapError(500, 50000, "Could not update 'refetch token' for user"));
   }
 
   res.cookie('jwt_token', jwt_token, {
@@ -414,7 +416,7 @@ router.post('/refetch-token', async (req, res, next) => {
   let query = `
   query get_refetch_token(
     $refetch_token: uuid!,
-    $user_id: uuid!
+    $user_id: Int!,
     $current_timestampz: timestamptz!,
   ) {
     ${schema_name}refetch_tokens (
@@ -475,7 +477,7 @@ router.post('/refetch-token', async (req, res, next) => {
   mutation (
     $old_refetch_token: uuid!,
     $new_refetch_token_data: refetch_tokens_insert_input!
-    $user_id: uuid!
+    $user_id: Int!
   ) {
     delete_${schema_name}refetch_tokens (
       where: {
@@ -528,64 +530,15 @@ router.post('/refetch-token', async (req, res, next) => {
   });
 });
 
-/**
- * 验证登录token中间件函数
- * @param {Request} req 请求对象
- * @param {Response} _res 响应对象
- * @param {Function} next 下一个中间件
- */
-const _jwt_verify = async (req, _res, next) => {
-  // get jwt token
-  if (!req.headers.authorization) {
-    return next(Boom.badRequest('no authorization header'));
-  }
-
-  const auth_split = req.headers.authorization.split(' ');
-
-  if (auth_split[0] !== 'Bearer' || !auth_split[1]) {
-    return next(Boom.badRequest('malformed authorization header'));
-  }
-
-  // get jwt token
-  const token = auth_split[1];
-
-  // verify jwt token is OK
-  let claims;
-  try {
-    jwt.exp
-    claims = jwt.verify(
-      token,
-      HASURA_GRAPHQL_JWT_SECRET.key,
-      {
-        algorithms: HASURA_GRAPHQL_JWT_SECRET.type,
-      }
-    );
-  } catch (e) {
-    console.error(e);
-    return next(Boom.unauthorized('Incorrect JWT Token'));
-  }
-
-  // get user_id from jwt claim
-  const user_id = claims['https://hasura.io/jwt/claims']['x-hasura-user-id'];
-
-  // get user from hasura (include ${USER_FIELDS.join('\n')})
+router.get('/user_info', verify_tool.jwt_verify, async (req, res, next) => {
+  const { user } = req;
   let query = `
   query (
     $id: Int!
   ) {
-    user: ${schema_name}users_by_pk(id: $id) {
-      id
-      username
-      active
-      default_role
-      roles: users_x_roles {
-        role
-      },
-      login_2fa: users_2fas {
-        enable_totp
-        enable_sms
-      }
-      ${USER_FIELDS.join('\n')}
+    profile: ${schema_name}user_profiles_by_pk(user_id: $id) {
+      avatar_img_path
+      full_name
     }
   }
   `;
@@ -593,28 +546,24 @@ const _jwt_verify = async (req, _res, next) => {
   let hasura_data;
   try {
     hasura_data = await graphql_client.request(query, {
-      id: user_id,
+      id: user.id,
     });
   } catch (e) {
     console.error(e);
     return next(Boom.unauthorized("Unable to get 'user'"));
   }
 
-  req.user = Object.assign({}, hasura_data.user);
-  next();
-}
-
-router.get('/user', _jwt_verify, async (req, res, next) => {
   // return user as json response
   res.json({
     user: req.user,
+    profile: hasura_data.profile
   });
 });
 
 /**
  * 登录用户自行启动TOTP验证
  */
-router.post('/enable-2fa-totp', _jwt_verify, async (req, res, next) => {
+router.post('/enable-2fa-totp', verify_tool.jwt_verify, async (req, res, next) => {
 
   // get user_id from jwt claim
   const { user } = req;
@@ -677,5 +626,4 @@ router.post('/enable-2fa-totp', _jwt_verify, async (req, res, next) => {
   }
 });
 
-// TODO: enable sms 2fa login
 module.exports = router;

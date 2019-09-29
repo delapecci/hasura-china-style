@@ -31,6 +31,9 @@ if (STORAGE_ACTIVE) {
   app.use('/storage', storage);
 }
 
+const inbox = require('./inbox');
+app.use('/inbox', inbox);
+
 // error handler
 app.use((err, req, res, next) => {
 	if (err) {

@@ -1,9 +1,8 @@
 /**
- * multer storage for QINIU, thanks QINIU's S3 compatible API, we can use same codes as S3 implementation
+ * multer storage for QINIU, which is same with S3 because of qiniu's S3 compatible API.
  */
 
 const uuidv4 = require('uuid/v4');
-const multer = require('multer');
 const multerS3 = require('multer-s3');
 const AWS = require('aws-sdk');
 const mime = require('mime-types');

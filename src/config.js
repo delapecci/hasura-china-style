@@ -6,16 +6,18 @@ exports.USER_REGISTRATION_AUTO_ACTIVE = process.env.USER_REGISTRATION_AUTO_ACTIV
 exports.HASURA_GRAPHQL_ENDPOINT = process.env.HASURA_GRAPHQL_ENDPOINT || 'http://graphql-engine:8080/v1/graphql';
 exports.HASURA_GRAPHQL_ADMIN_SECRET = process.env.HASURA_GRAPHQL_ADMIN_SECRET || 'Acce55Gr@nted';
 exports.HASURA_GRAPHQL_JWT_SECRET = process.env.HASURA_GRAPHQL_JWT_SECRET ? JSON.parse(process.env.HASURA_GRAPHQL_JWT_SECRET) : {'type':'HS256', 'key': 'W0+jiu+shi+zhong+xin+xi+huan_Hasura+_1_2_3'};
-exports.S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID || '';
-exports.S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY || '';
-exports.S3_ENDPOINT = process.env.S3_ENDPOINT || '';
-exports.S3_BUCKET = process.env.S3_BUCKET || '';
 exports.REFETCH_TOKEN_EXPIRES = process.env.REFETCH_TOKEN_EXPIRES || (60*24*30); // expire after 30 days
-exports.JWT_TOKEN_EXPIRES = process.env.JWT_TOKEN_EXPIRES || 15; // expire after 15 minutes
+exports.JWT_TOKEN_EXPIRES = process.env.JWT_TOKEN_EXPIRES || 60; // expire after 15 minutes
 
 exports.SYSTEM_NAME = process.env.SYSTEM_NAME || 'Hasura China';
 
 exports.STORAGE_PROVIDER = process.env.STORAGE_PROVIDER || 'qiniu';
+
+exports.S3_ACCESS_KEY_ID = process.env.S3_ACCESS_KEY_ID || '';
+exports.S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY || '';
+exports.S3_ENDPOINT = process.env.S3_ENDPOINT || '';
+exports.S3_BUCKET = process.env.S3_BUCKET || '';
+
 exports.ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID || 'SKwSj3bcQzH8F3Yg';
 exports.ALIYUN_SECRET_ACCESS_KEY = process.env.ALIYUN_SECRET_ACCESS_KEY || '';
 exports.ALIYUN_ENDPOINT = process.env.ALIYUN_ENDPOINT || 'oss-cn-qingdao.aliyuncs.com';

@@ -18,14 +18,14 @@ exports.S3_SECRET_ACCESS_KEY = process.env.S3_SECRET_ACCESS_KEY || '';
 exports.S3_ENDPOINT = process.env.S3_ENDPOINT || '';
 exports.S3_BUCKET = process.env.S3_BUCKET || '';
 
-exports.ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID || 'SKwSj3bcQzH8F3Yg';
+exports.ALIYUN_ACCESS_KEY_ID = process.env.ALIYUN_ACCESS_KEY_ID || 'xxxxxxxxxxxxx';
 exports.ALIYUN_SECRET_ACCESS_KEY = process.env.ALIYUN_SECRET_ACCESS_KEY || '';
 exports.ALIYUN_ENDPOINT = process.env.ALIYUN_ENDPOINT || 'oss-cn-qingdao.aliyuncs.com';
 exports.ALIYUN_BUCKET = process.env.ALIYUN_BUCKET || 'qh-dev';
 exports.ALIYUN_REGION = process.env.ALIYUN_REGION || 'oss-cn-hangzhou';
 exports.ALIYUN_TIMEOUT = process.ALIYUN_OSS_TIMEOUT || 120; // 120s
 
-exports.QINIU_ACCESS_KEY_ID = process.env.QINIU_ACCESS_KEY_ID || '09SdFcSDX4x5yjOQkbNjgspa6RiWMYLLYNBcq7he';
+exports.QINIU_ACCESS_KEY_ID = process.env.QINIU_ACCESS_KEY_ID || 'xxxxxxxxxxxx';
 exports.QINIU_SECRET_ACCESS_KEY = process.env.QINIU_SECRET_ACCESS_KEY || '';
 exports.QINIU_ENDPOINT = process.env.QINIU_ENDPOINT || 's3-cn-east-1.qiniucs.com';
 exports.QINIU_BUCKET = process.env.QINIU_BUCKET || 'pj-images';

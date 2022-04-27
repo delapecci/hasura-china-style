@@ -19,7 +19,7 @@
   "dependencies": {
     "@hapi/joi": "^16.1.1",
     "ali-oss": "^6.1.1",
-    "aws-sdk": "^2.362.0",
+    "aws-sdk": "^2.814.0",
     "aws-serverless-express": "^3.3.5",
     "bcryptjs": "^2.4.3",
     "boom": "^7.2.2",
